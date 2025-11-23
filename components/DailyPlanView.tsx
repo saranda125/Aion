@@ -1,12 +1,48 @@
 import React from 'react';
-import { CalendarEvent, EventSource, BurnoutLevel, DayAnalysis } from '../types';
-import { Flame, Book, Coffee, Gamepad2, Clock, Activity } from 'lucide-react';
+import { BurnoutLevel, DayAnalysis, SuggestionType, Persona } from '../types';
+import { 
+  Activity, AlertTriangle, Zap, Sparkles, Lightbulb, 
+  ArrowRight, Heart, Flame, RefreshCw
+} from 'lucide-react';
 
 interface Props {
   analysis: DayAnalysis;
+  persona: Persona;
+  onNewCheckin?: () => void;
+  onGoToCalendar: () => void;
 }
 
-const getRiskColor = (level: BurnoutLevel) => {
+// Helper for persona-specific labels
+const getPersonaHeaders = (persona: Persona) => {
+    switch (persona) {
+        case 'Toxic Motivation':
+            return {
+                systemLoad: "FAILURE PROBABILITY",
+                vibeCheck: "HARD TRUTH",
+                suggestions: "TACTICAL IMPROVEMENTS",
+                goCalendar: "EXECUTE MISSION"
+            };
+        case 'Softer / Empathetic':
+            return {
+                systemLoad: "Emotional Battery",
+                vibeCheck: "A Gentle Note",
+                suggestions: "Nourishing Ideas",
+                goCalendar: "View Gentle Flow"
+            };
+        default:
+            return {
+                systemLoad: "System Load",
+                vibeCheck: "Vibe Check",
+                suggestions: "Smart Suggestions",
+                goCalendar: "Go to Calendar"
+            };
+    }
+};
+
+const getRiskColor = (level: BurnoutLevel, persona: Persona) => {
+    if (persona === 'Toxic Motivation') {
+         return 'bg-slate-100 border-slate-200 text-slate-800'; // Industrial look
+    }
   switch (level) {
     case BurnoutLevel.LOW: return 'bg-emerald-50 border-emerald-100 text-emerald-700';
     case BurnoutLevel.MEDIUM: return 'bg-amber-50 border-amber-100 text-amber-700';
@@ -14,101 +50,152 @@ const getRiskColor = (level: BurnoutLevel) => {
   }
 };
 
-const getIcon = (source: EventSource) => {
-  switch (source) {
-    case EventSource.SCHOOL: return <Book className="w-4 h-4" />;
-    case EventSource.WELLNESS: return <Coffee className="w-4 h-4" />;
-    case EventSource.SOCIAL: return <Gamepad2 className="w-4 h-4" />;
-    default: return <Clock className="w-4 h-4" />;
-  }
+const getSuggestionIcon = (type: SuggestionType) => {
+    switch(type) {
+        case 'warning': return <AlertTriangle className="w-6 h-6 text-rose-500" />;
+        case 'optimization': return <Zap className="w-6 h-6 text-blue-500" />;
+        case 'opportunity': return <Sparkles className="w-6 h-6 text-emerald-500" />;
+        case 'insight': return <Lightbulb className="w-6 h-6 text-amber-500" />;
+    }
 };
 
-export const DailyPlanView: React.FC<Props> = ({ analysis }) => {
+const getSuggestionGradient = (type: SuggestionType) => {
+     switch(type) {
+        case 'warning': return 'bg-gradient-to-br from-rose-50 to-white border-rose-100 hover:shadow-rose-100';
+        case 'optimization': return 'bg-gradient-to-br from-blue-50 to-white border-blue-100 hover:shadow-blue-100';
+        case 'opportunity': return 'bg-gradient-to-br from-emerald-50 to-white border-emerald-100 hover:shadow-emerald-100';
+        case 'insight': return 'bg-gradient-to-br from-amber-50 to-white border-amber-100 hover:shadow-amber-100';
+    }
+}
+
+export const DailyPlanView: React.FC<Props> = ({ analysis, persona, onNewCheckin, onGoToCalendar }) => {
+  const headers = getPersonaHeaders(persona);
+
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-8 custom-scrollbar">
+    <div className="h-full overflow-y-auto bg-slate-50/50 custom-scrollbar flex flex-col p-6 md:p-10">
       
-      {/* Top Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Burnout Score */}
-        <div className={`p-6 rounded-3xl border flex flex-col justify-between shadow-sm ${getRiskColor(analysis.burnoutLevel)}`}>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold uppercase tracking-wider text-xs opacity-80">Burnout Risk</h3>
-            <Activity className="w-5 h-5 opacity-80" />
+      <div className="max-w-5xl mx-auto w-full space-y-10 pb-10">
+          
+          {/* Header Row with Update Button */}
+          <div className="flex justify-end">
+              <button 
+                onClick={onNewCheckin}
+                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-500 text-xs font-bold uppercase tracking-wider rounded-full border border-slate-200 shadow-sm transition-colors"
+              >
+                  <RefreshCw className="w-3 h-3" />
+                  Check-in Again
+              </button>
           </div>
-          <div className="flex items-end gap-2">
-            <span className="text-4xl font-serif font-bold">{analysis.burnoutScore}%</span>
-            <span className="text-sm font-medium mb-1 pb-1 opacity-80">{analysis.burnoutLevel} Risk</span>
-          </div>
-          <div className="w-full bg-white/40 h-2 rounded-full mt-4 overflow-hidden">
-            <div 
-              className="h-full bg-current transition-all duration-1000 ease-out" 
-              style={{ width: `${analysis.burnoutScore}%` }}
-            />
-          </div>
-        </div>
 
-        {/* Vibe Check Advice */}
-        <div className="md:col-span-2 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden group hover:shadow-md transition-shadow">
-            <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-50 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none opacity-50"></div>
-            <h3 className="font-bold text-aion-primary uppercase tracking-wider text-xs mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-aion-primary animate-pulse"></span>
-                Aion's Vibe Check
-            </h3>
-            <p className="text-lg md:text-xl text-slate-700 font-medium leading-relaxed">
-              "{analysis.advice}"
-            </p>
-        </div>
-      </div>
-
-      {/* Timeline */}
-      <div>
-        <h3 className="text-xl font-serif font-bold text-slate-800 mb-8 flex items-center gap-2">
-          <Clock className="w-5 h-5 text-aion-primary" />
-          Your Game Plan
-        </h3>
-        
-        <div className="relative space-y-4 pl-4 md:pl-0">
-          {/* Vertical Line */}
-          <div className="absolute left-6 md:left-1/2 top-2 bottom-2 w-px bg-slate-200 hidden md:block"></div>
-
-          {analysis.schedule.sort((a,b) => a.start.getTime() - b.start.getTime()).map((event, idx) => {
-            const isLeft = idx % 2 === 0;
-            
-            return (
-              <div key={event.id} className={`relative flex items-center ${isLeft ? 'md:flex-row-reverse' : ''} md:justify-between group`}>
-                
-                {/* Time Bubble (Center) */}
-                <div className="absolute left-0 md:left-1/2 md:-translate-x-1/2 bg-white border border-slate-200 text-slate-600 text-[10px] font-bold py-1.5 px-3 rounded-full z-10 w-18 text-center shadow-sm group-hover:border-aion-primary group-hover:text-aion-primary transition-colors">
-                  {event.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
-
-                {/* Content Card */}
-                <div className={`w-full md:w-[45%] pl-20 md:pl-0 ${isLeft ? 'md:pr-14' : 'md:pl-14'}`}>
-                  <div className={`p-5 rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all ${
-                    event.source === EventSource.SCHOOL ? 'border-l-[4px] border-l-blue-400' :
-                    event.source === EventSource.WELLNESS ? 'border-l-[4px] border-l-emerald-400' :
-                    'border-l-[4px] border-l-purple-400'
-                  }`}>
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="font-bold text-slate-800 text-sm md:text-base">{event.title}</h4>
-                      <div className={`p-1.5 rounded-full bg-slate-50 text-slate-500`}>
-                        {getIcon(event.source)}
-                      </div>
-                    </div>
-                    <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                        {event.description || "Stay focused and get it done."}
-                    </p>
-                    <div className="mt-3 flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                        {Math.round((event.end.getTime() - event.start.getTime()) / 60000)} mins
+          {/* Section 1: SYSTEM LOAD & VIBE CHECK */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+             
+             {/* System Load Gauge */}
+             <div className={`md:col-span-2 p-8 rounded-[32px] border flex flex-col justify-between shadow-sm transition-all relative overflow-hidden ${getRiskColor(analysis.burnoutLevel, persona)}`}>
+                  <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/20 rounded-full blur-3xl"></div>
+                  
+                  <div className="flex items-center justify-between mb-4 relative z-10">
+                    <h3 className="font-bold uppercase tracking-wider text-xs opacity-80 flex items-center gap-2">
+                        <Activity className="w-4 h-4" />
+                        {headers.systemLoad}
+                    </h3>
+                  </div>
+                  
+                  <div className="flex items-end gap-2 relative z-10 my-4">
+                    <span className="text-7xl font-serif font-bold tracking-tighter leading-none">{analysis.burnoutScore}</span>
+                    <div className="flex flex-col mb-2">
+                        <span className="text-xl leading-none font-medium text-opacity-60">%</span>
                     </div>
                   </div>
-                </div>
 
+                  <div className="relative z-10">
+                      <div className="flex justify-between text-[10px] font-bold uppercase mb-2 opacity-70">
+                          <span>Low</span>
+                          <span>Critical</span>
+                      </div>
+                      <div className="w-full bg-black/10 h-2 rounded-full overflow-hidden">
+                        <div 
+                        className="h-full bg-current transition-all duration-1000 ease-out rounded-full" 
+                        style={{ width: `${analysis.burnoutScore}%` }}
+                        />
+                      </div>
+                      <p className="mt-4 text-sm font-medium opacity-90">
+                          Current Status: <span className="font-bold">{analysis.burnoutLevel}</span>
+                      </p>
+                  </div>
+             </div>
+
+             {/* Vibe Check - Redesigned */}
+             <div className="md:col-span-3 bg-white rounded-[32px] p-8 border border-slate-200 shadow-xl shadow-slate-200/50 relative overflow-hidden flex flex-col justify-center group">
+                 <div className={`absolute inset-0 bg-gradient-to-br opacity-50 ${persona === 'Toxic Motivation' ? 'from-slate-100 via-white to-white' : persona === 'Softer / Empathetic' ? 'from-rose-50/50 via-white to-white' : 'from-emerald-50/50 via-white to-white'}`}></div>
+                 
+                 {/* Decorative Blobs */}
+                 <div className={`absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 ${persona === 'Toxic Motivation' ? 'bg-slate-200/30' : persona === 'Softer / Empathetic' ? 'bg-rose-100/30' : 'bg-emerald-100/30'}`}></div>
+                 <div className={`absolute bottom-0 left-0 w-48 h-48 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 ${persona === 'Toxic Motivation' ? 'bg-red-100/30' : 'bg-blue-100/30'}`}></div>
+
+                 <div className="relative z-10">
+                     <div className="flex items-center gap-3 mb-6">
+                         <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg ${persona === 'Toxic Motivation' ? 'bg-black' : persona === 'Softer / Empathetic' ? 'bg-rose-400' : 'bg-slate-900'}`}>
+                             {persona === 'Toxic Motivation' ? <Flame className="w-5 h-5 fill-current text-red-500" /> : <Heart className="w-5 h-5 fill-current" />}
+                         </div>
+                         <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400">{headers.vibeCheck}</h3>
+                     </div>
+                     <p className="text-2xl md:text-3xl font-serif text-slate-800 leading-snug">
+                        "{analysis.advice}"
+                     </p>
+                     
+                     <button 
+                        onClick={onGoToCalendar}
+                        className={`mt-6 flex items-center gap-2 font-bold text-sm cursor-pointer hover:gap-3 transition-all group-hover:translate-x-1 ${persona === 'Toxic Motivation' ? 'text-slate-900' : persona === 'Softer / Empathetic' ? 'text-rose-500' : 'text-emerald-600'}`}
+                     >
+                         <span>{headers.goCalendar}</span>
+                         <ArrowRight className="w-4 h-4" />
+                     </button>
+                 </div>
+             </div>
+          </div>
+
+          {/* Section 2: DYNAMIC SUGGESTIONS */}
+          {analysis.suggestions && analysis.suggestions.length > 0 && (
+              <div>
+                  <h3 className="text-lg font-serif font-bold text-slate-800 mb-6 flex items-center gap-2">
+                      <Sparkles className={`w-5 h-5 ${persona === 'Toxic Motivation' ? 'text-slate-900' : 'text-emerald-500'}`} />
+                      {headers.suggestions}
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {analysis.suggestions.map((suggestion, idx) => (
+                          <div 
+                            key={suggestion.id}
+                            className={`p-6 rounded-[24px] border shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group relative overflow-hidden ${getSuggestionGradient(suggestion.type)}`}
+                            style={{ animationDelay: `${idx * 100}ms` }}
+                          >
+                               <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform">
+                                   {getSuggestionIcon(suggestion.type)}
+                               </div>
+
+                               <div className="flex flex-col h-full relative z-10">
+                                   <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4 text-slate-700">
+                                       {getSuggestionIcon(suggestion.type)}
+                                   </div>
+                                   
+                                   <div className="mb-2 flex items-center gap-2">
+                                       <span className="text-[10px] font-bold uppercase px-2 py-1 bg-white/80 backdrop-blur rounded-lg border border-slate-100">{suggestion.priority} Priority</span>
+                                       {suggestion.timeSlot && (
+                                            <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded-lg">
+                                                {suggestion.timeSlot}
+                                            </span>
+                                        )}
+                                   </div>
+
+                                   <h4 className="font-bold text-slate-800 text-lg mb-2 leading-tight">{suggestion.title}</h4>
+                                   <p className="text-sm text-slate-600 leading-relaxed font-medium opacity-80">{suggestion.description}</p>
+                               </div>
+                          </div>
+                      ))}
+                  </div>
               </div>
-            );
-          })}
-        </div>
+          )}
+
       </div>
     </div>
   );

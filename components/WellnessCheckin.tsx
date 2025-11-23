@@ -1,311 +1,263 @@
+
 import React, { useState, useEffect } from 'react';
-import { WellnessMetrics, Mood } from '../types';
-import { Moon, BookOpen, AlertCircle, Smile, Meh, Coffee, Zap, Calendar, Plus, X, Check } from 'lucide-react';
+import { WellnessMetrics, Mood, UserProfile, Persona } from '../types';
+import { Moon, AlertCircle, Smile, Meh, Coffee, Zap, ArrowRight, Sparkles, Flame, CloudRain, Lock } from 'lucide-react';
 
 interface Props {
-  roles: string[];
+  profile: UserProfile;
   onSubmit: (metrics: WellnessMetrics) => void;
   isLoading: boolean;
+  onBack: () => void;
+  persona: Persona;
 }
 
-// Suggested activities based on common roles
-const ACTIVITY_SUGGESTIONS: Record<string, string[]> = {
-  'Student': ['Math Homework', 'Essay Writing', 'Group Project', 'Exam Prep', 'Lecture'],
-  'Parent': ['Daycare Drop-off', 'School Run', 'Meal Prep', 'Bedtime Routine', 'Pediatrician'],
-  'Professional': ['Client Meeting', 'Deep Work', 'Email Triage', 'Team Sync', 'Project Planning'],
-  'Athlete': ['Gym Session', 'Recovery', 'Physio', 'Meal Prep', 'Cardio'],
-  'Creative': ['Brainstorming', 'Drafting', 'Editing', 'Inspiration Walk', 'Portfolio Update'],
-  'General': ['Reading', 'Grocery Shopping', 'Laundry', 'Meditation', 'Walk the Dog', 'Commute']
+const QUOTES_BY_PERSONA = {
+    'Neutral / Stoic': [
+        { text: "Nature does not hurry, yet everything is accomplished.", author: "Lao Tzu" },
+        { text: "Balance is the key to everything.", author: "Koi Fresco" },
+        { text: "Relax. Nothing is under control.", author: "Adi Da" },
+    ],
+    'Toxic Motivation': [
+        { text: "SLEEP IS A CRUTCH. (BUT USE IT TO RELOAD.)", author: "THE GRIND" },
+        { text: "PAIN IS WEAKNESS LEAVING THE BODY.", author: "MARINES" },
+        { text: "NOBODY CARES. WORK HARDER.", author: "REALITY" },
+    ],
+    'Softer / Empathetic': [
+        { text: "You are enough, just as you are, in this moment.", author: "Meghan Markle" },
+        { text: "Rest is a vital part of your journey.", author: "John Lubbock" },
+        { text: "Be gentle with yourself. You're doing your best.", author: "Unknown" },
+    ]
 };
 
-export const WellnessCheckin: React.FC<Props> = ({ roles, onSubmit, isLoading }) => {
-  const [step, setStep] = useState(1);
+// Helper to get dynamic labels based on persona
+const getPersonaLabels = (persona: Persona) => {
+    switch (persona) {
+        case 'Toxic Motivation':
+            return {
+                titleBadge: "COMBAT READINESS",
+                subtitle: "REPORT STATUS. NO EXCUSES.",
+                sleepLabel: "RECOVERY HOURS",
+                stressLabel: "SYSTEM FAILURE RISK",
+                moodLabel: "OPERATIONAL CAPACITY",
+                submitBtn: "SUBMIT REPORT",
+                loading: "ASSESSING WEAKNESS...",
+            };
+        case 'Softer / Empathetic':
+            return {
+                titleBadge: "Heart Space",
+                subtitle: "How are you feeling, really?",
+                sleepLabel: "Rest & Dreams",
+                stressLabel: "Internal Weather",
+                moodLabel: "Emotional Color",
+                submitBtn: "Wrap Me In Warmth",
+                loading: "Listening to you...",
+            };
+        default: // Neutral
+            return {
+                titleBadge: "Daily Pulse",
+                subtitle: "Let's tune in. How is your system running today?",
+                sleepLabel: "Sleep Tank",
+                stressLabel: "Stress Level",
+                moodLabel: "Current Vibe",
+                submitBtn: "Calculate Balance",
+                loading: "Analyzing System Load...",
+            };
+    }
+};
+
+const getAccentColor = (persona: Persona) => {
+    switch(persona) {
+        case 'Toxic Motivation': return 'text-slate-900';
+        case 'Softer / Empathetic': return 'text-rose-500';
+        default: return 'text-emerald-500';
+    }
+}
+
+const getButtonClass = (persona: Persona, isActive: boolean) => {
+     if (persona === 'Toxic Motivation') {
+         return isActive ? 'bg-slate-900 border-slate-900 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-400 hover:border-slate-400';
+     }
+     if (persona === 'Softer / Empathetic') {
+         return isActive ? 'bg-rose-400 border-rose-400 text-white shadow-lg shadow-rose-200' : 'bg-white border-rose-100 text-rose-300 hover:border-rose-300';
+     }
+     return isActive ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-white border-slate-100 text-slate-400 hover:border-emerald-200 hover:text-emerald-600';
+}
+
+const getMainButtonClass = (persona: Persona) => {
+    switch(persona) {
+        case 'Toxic Motivation': return 'bg-slate-950 hover:bg-red-600 shadow-slate-400';
+        case 'Softer / Empathetic': return 'bg-rose-400 hover:bg-rose-500 shadow-rose-200';
+        default: return 'bg-slate-900 hover:bg-emerald-600 shadow-slate-200';
+    }
+}
+
+export const WellnessCheckin: React.FC<Props> = ({ profile, onSubmit, isLoading, onBack, persona }) => {
   const [metrics, setMetrics] = useState<WellnessMetrics>({
-    roles: roles,
     sleepHours: 7,
     stressLevel: 5,
     mood: 'Okay',
-    studyHoursPlanned: 4,
-    deadlines: '',
-    obligations: ''
+    customActivity: ''
   });
 
-  // State for the "Drag and Drop" style selection
-  const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
-  const [customActivity, setCustomActivity] = useState('');
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [quote, setQuote] = useState(QUOTES_BY_PERSONA['Neutral / Stoic'][0]);
+  const labels = getPersonaLabels(persona);
 
   useEffect(() => {
-    setMetrics(prev => ({ ...prev, roles: roles }));
-  }, [roles]);
-
-  const handleNext = () => {
-    if (step < 3) {
-      setStep(step + 1);
-    } else {
-      // Combine selected activities into the string format expected by the AI service
-      const finalMetrics = {
-        ...metrics,
-        obligations: selectedActivities.join(', ')
-      };
-      onSubmit(finalMetrics);
-    }
-  };
-
-  const toggleActivity = (activity: string) => {
-    if (selectedActivities.includes(activity)) {
-      setSelectedActivities(prev => prev.filter(a => a !== activity));
-    } else {
-      setSelectedActivities(prev => [...prev, activity]);
-    }
-  };
-
-  const addCustomActivity = () => {
-    if (customActivity.trim()) {
-      toggleActivity(customActivity.trim());
-      setCustomActivity('');
-    }
-  };
-
-  // Simulate connecting to an external calendar
-  const simulateCalendarSync = () => {
-    setIsSyncing(true);
-    setTimeout(() => {
-      const mockEvents = ['Dentist Appt (2pm)', 'Team Sync (10am)', 'Submit Report'];
-      // Add only unique events
-      const newEvents = mockEvents.filter(e => !selectedActivities.includes(e));
-      setSelectedActivities(prev => [...prev, ...newEvents]);
-      setIsSyncing(false);
-    }, 1500);
-  };
-
-  const getWorkLabel = () => {
-    const r = roles.map(r => r.toLowerCase());
-    if (r.includes('student') && r.includes('professional')) return "Work & Study Hours";
-    if (r.includes('student')) return "Study Hours";
-    if (r.includes('professional') || r.includes('worker')) return "Deep Work Hours";
-    if (r.includes('parent')) return "Core Responsibility Hours";
-    return "Focus/Work Hours";
-  };
+      const quotes = QUOTES_BY_PERSONA[persona] || QUOTES_BY_PERSONA['Neutral / Stoic'];
+      setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
+  }, [persona]);
 
   const moods: { label: Mood; icon: React.ReactNode }[] = [
-    { label: 'Great', icon: <Zap className="w-6 h-6 text-amber-400" /> },
-    { label: 'Okay', icon: <Smile className="w-6 h-6 text-emerald-400" /> },
-    { label: 'Tired', icon: <Coffee className="w-6 h-6 text-slate-400" /> },
-    { label: 'Stressed', icon: <AlertCircle className="w-6 h-6 text-rose-400" /> },
-    { label: 'Anxious', icon: <Meh className="w-6 h-6 text-purple-400" /> },
+    { label: 'Great', icon: <Zap className="w-5 h-5" /> },
+    { label: 'Okay', icon: <Smile className="w-5 h-5" /> },
+    { label: 'Tired', icon: <Coffee className="w-5 h-5" /> },
+    { label: 'Stressed', icon: <AlertCircle className="w-5 h-5" /> },
+    { label: 'Anxious', icon: <Meh className="w-5 h-5" /> },
   ];
 
-  // Get relevant suggestions based on selected roles
-  const getSuggestions = () => {
-    let suggestions = [...ACTIVITY_SUGGESTIONS['General']];
-    roles.forEach(role => {
-      if (ACTIVITY_SUGGESTIONS[role]) {
-        suggestions = [...suggestions, ...ACTIVITY_SUGGESTIONS[role]];
-      }
-    });
-    // Remove duplicates
-    return Array.from(new Set(suggestions));
-  };
-
   return (
-    <div className="max-w-lg mx-auto mt-4 p-8 bg-white/80 backdrop-blur-xl rounded-3xl border border-white shadow-2xl shadow-slate-200/50 w-full relative overflow-hidden">
+    <div className="max-w-5xl mx-auto w-full min-h-[600px] h-auto bg-white rounded-[40px] shadow-xl border border-slate-100 overflow-hidden flex flex-col md:flex-row relative group mb-10">
       
-      {/* Progress Bar */}
-      <div className="absolute top-0 left-0 h-1 bg-emerald-100 w-full">
-        <div className="h-full bg-aion-primary transition-all duration-500" style={{ width: `${(step / 3) * 100}%` }} />
-      </div>
-
-      <div className="mb-8 mt-2">
-        <h2 className="text-3xl font-serif font-bold text-slate-800">
-          {step === 3 ? "What's on the docket?" : "Daily Check-in"}
-        </h2>
-        <p className="text-slate-500 mt-1">Logging as: <span className="text-aion-primary font-semibold">{roles.join(', ')}</span></p>
-      </div>
-
-      {/* STEP 1: PHYSICAL STATE */}
-      {step === 1 && (
-        <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-              <Moon className="w-5 h-5 text-indigo-500" />
-              How many hours did you sleep?
-            </label>
-            <div className="flex items-center gap-4">
-                <input
-                type="range"
-                min="0"
-                max="14"
-                step="0.5"
-                value={metrics.sleepHours}
-                onChange={(e) => setMetrics({ ...metrics, sleepHours: parseFloat(e.target.value) })}
-                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-aion-primary"
-                />
-                <span className="min-w-[4rem] text-center px-3 py-1 bg-slate-100 rounded-lg font-bold text-slate-800 border border-slate-200">
-                    {metrics.sleepHours}h
+      {/* Left Panel: Form */}
+      <div className="flex-1 flex flex-col p-8 md:p-12 relative z-10">
+          
+          {/* Header */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+                <span className={`text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full ${persona === 'Toxic Motivation' ? 'bg-slate-900 text-white' : persona === 'Softer / Empathetic' ? 'bg-rose-100 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                    {labels.titleBadge}
                 </span>
             </div>
+            <h2 className="text-4xl font-serif font-bold text-slate-900 mb-3 tracking-tight">
+                Hey, {profile.name}.
+            </h2>
+            <p className="text-base text-slate-500 font-medium">
+                {labels.subtitle}
+            </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-4">Current Mood</label>
-            <div className="grid grid-cols-5 gap-2">
-              {moods.map((m) => (
-                <button
-                  key={m.label}
-                  onClick={() => setMetrics({ ...metrics, mood: m.label })}
-                  className={`p-3 rounded-2xl flex flex-col items-center gap-2 transition-all border ${
-                    metrics.mood === m.label
-                      ? 'bg-emerald-50 border-emerald-200 text-slate-900 ring-2 ring-emerald-500 ring-offset-2'
-                      : 'bg-white border-slate-100 text-slate-400 hover:bg-slate-50 hover:border-slate-200'
-                  }`}
-                >
-                  {m.icon}
-                  <span className="text-[10px] font-medium">{m.label}</span>
-                </button>
-              ))}
+          {/* Dynamic Form Content */}
+          <div className="flex-1 space-y-10">
+            
+            {/* SLEEP */}
+            <div className="animate-in fade-in slide-in-from-left-4 duration-300">
+                <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500 mb-6">
+                        <Moon className={`w-4 h-4 ${getAccentColor(persona)}`} />
+                        {labels.sleepLabel}
+                </label>
+                <div className="flex items-center gap-6">
+                    <div className="flex-1 relative h-14 flex items-center">
+                        <div className="absolute inset-x-0 h-3 bg-slate-100 rounded-full overflow-hidden">
+                            <div className={`h-full rounded-full transition-all duration-300 ${persona === 'Toxic Motivation' ? 'bg-slate-800' : persona === 'Softer / Empathetic' ? 'bg-rose-300' : 'bg-emerald-400'}`} style={{ width: `${(metrics.sleepHours / 12) * 100}%` }}></div>
+                        </div>
+                        <input
+                            type="range" min="0" max="12" step="0.5"
+                            value={metrics.sleepHours}
+                            onChange={(e) => setMetrics({ ...metrics, sleepHours: parseFloat(e.target.value) })}
+                            className="absolute inset-0 w-full opacity-0 cursor-pointer z-20"
+                        />
+                        <div 
+                            className={`absolute w-8 h-8 bg-white border-4 rounded-full shadow-lg pointer-events-none transition-all duration-300 flex items-center justify-center z-10 ${persona === 'Toxic Motivation' ? 'border-slate-800' : persona === 'Softer / Empathetic' ? 'border-rose-300' : 'border-emerald-400'}`}
+                            style={{ left: `calc(${(metrics.sleepHours / 12) * 100}% - 16px)` }}
+                        >
+                        </div>
+                    </div>
+                    <div className={`w-20 h-20 rounded-3xl flex flex-col items-center justify-center border shadow-sm ${persona === 'Toxic Motivation' ? 'bg-slate-100 text-slate-900 border-slate-200' : persona === 'Softer / Empathetic' ? 'bg-rose-50 text-rose-800 border-rose-100' : 'bg-emerald-50 text-emerald-800 border-emerald-100'}`}>
+                        <span className="text-3xl font-serif font-bold leading-none">{metrics.sleepHours}</span>
+                        <span className="text-[10px] font-bold uppercase mt-1 opacity-60">Hrs</span>
+                    </div>
+                </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* STEP 2: MENTAL LOAD */}
-      {step === 2 && (
-        <div className="space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-rose-500" />
-              Stress Level (1-10)
-            </label>
-            <input
-              type="range"
-              min="1"
-              max="10"
-              value={metrics.stressLevel}
-              onChange={(e) => setMetrics({ ...metrics, stressLevel: parseInt(e.target.value) })}
-              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-rose-500"
-            />
-            <div className="flex justify-between text-xs font-medium text-slate-400 mt-2">
-              <span>Chill</span>
-              <span className="text-slate-800 font-bold text-lg bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 -mt-3">{metrics.stressLevel}</span>
-              <span>Overwhelmed</span>
+            {/* STRESS */}
+            <div className="animate-in fade-in slide-in-from-left-4 duration-500">
+                <label className="flex items-center justify-between text-xs font-bold uppercase tracking-wide text-slate-500 mb-4">
+                    <span className="flex items-center gap-2">
+                        <AlertCircle className={`w-4 h-4 ${getAccentColor(persona)}`} />
+                        {labels.stressLabel}
+                    </span>
+                    <span className={`px-3 py-1 rounded-lg text-white text-xs font-bold shadow-sm ${metrics.stressLevel > 7 ? 'bg-rose-500' : metrics.stressLevel > 4 ? 'bg-amber-500' : 'bg-emerald-500'}`}>
+                        {metrics.stressLevel}/10
+                    </span>
+                </label>
+                <input
+                    type="range" min="1" max="10"
+                    value={metrics.stressLevel}
+                    onChange={(e) => setMetrics({ ...metrics, stressLevel: parseInt(e.target.value) })}
+                    className="w-full h-4 bg-gradient-to-r from-emerald-300 via-amber-300 to-rose-400 rounded-full appearance-none cursor-pointer accent-white shadow-inner"
+                />
             </div>
-          </div>
-           
-          <div>
-             <label className="block text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-blue-500" />
-              {getWorkLabel()} Needed
-            </label>
-             <input
-              type="number"
-              min="0"
-              max="12"
-              value={metrics.studyHoursPlanned}
-              onChange={(e) => setMetrics({ ...metrics, studyHoursPlanned: parseFloat(e.target.value) })}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 text-slate-800 focus:ring-2 focus:ring-aion-primary/20 focus:border-aion-primary focus:outline-none transition-all"
-            />
-          </div>
-        </div>
-      )}
 
-      {/* STEP 3: ACTIVITIES & OBLIGATIONS */}
-      {step === 3 && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-          
-          {/* Sync Button */}
-          <button 
-            onClick={simulateCalendarSync}
-            disabled={isSyncing}
-            className="w-full py-3 px-4 bg-slate-50 hover:bg-blue-50 border border-dashed border-slate-300 hover:border-blue-300 rounded-xl flex items-center justify-center gap-2 text-slate-600 hover:text-blue-600 transition-all group"
-          >
-            {isSyncing ? (
-               <span className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></span>
-            ) : (
-               <Calendar className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            )}
-            <span className="font-medium text-sm">{isSyncing ? "Syncing calendars..." : "Autofill from Google Calendar / Tum"}</span>
-          </button>
-
-          {/* Custom Input */}
-          <div className="flex gap-2">
-            <input 
-               type="text"
-               value={customActivity}
-               onChange={(e) => setCustomActivity(e.target.value)}
-               onKeyDown={(e) => e.key === 'Enter' && addCustomActivity()}
-               placeholder="Add something else..."
-               className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-aion-primary"
-            />
-            <button 
-              onClick={addCustomActivity}
-              className="bg-slate-800 text-white p-2 rounded-xl hover:bg-slate-700"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Selected Activities (The "Basket") */}
-          {selectedActivities.length > 0 && (
-            <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4">
-               <label className="text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2 block">Your Plan Today</label>
-               <div className="flex flex-wrap gap-2">
-                 {selectedActivities.map(activity => (
-                   <button 
-                     key={activity}
-                     onClick={() => toggleActivity(activity)}
-                     className="bg-white border border-emerald-200 text-slate-700 px-3 py-1.5 rounded-full text-sm flex items-center gap-2 shadow-sm hover:shadow hover:text-rose-500 hover:border-rose-200 group transition-all"
-                   >
-                      {activity}
-                      <X className="w-3 h-3 text-slate-300 group-hover:text-rose-500" />
-                   </button>
-                 ))}
-               </div>
+            {/* MOOD */}
+            <div className="animate-in fade-in slide-in-from-left-4 duration-700">
+                <label className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-500 mb-6">
+                    <Zap className={`w-4 h-4 ${getAccentColor(persona)}`} />
+                    {labels.moodLabel}
+                </label>
+                <div className="grid grid-cols-5 gap-3">
+                {moods.map((m) => (
+                    <button
+                    key={m.label}
+                    onClick={() => setMetrics({ ...metrics, mood: m.label })}
+                    className={`aspect-square rounded-3xl flex flex-col items-center justify-center gap-2 transition-all duration-200 border-2 ${getButtonClass(persona, metrics.mood === m.label)}`}
+                    >
+                    {m.icon}
+                    <span className="text-[10px] font-bold uppercase tracking-wide">{m.label}</span>
+                    </button>
+                ))}
+                </div>
             </div>
-          )}
-
-          {/* Suggestions Cloud */}
-          <div>
-             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block">Suggested for you</label>
-             <div className="flex flex-wrap gap-2">
-               {getSuggestions().filter(s => !selectedActivities.includes(s)).map(suggestion => (
-                 <button
-                    key={suggestion}
-                    onClick={() => toggleActivity(suggestion)}
-                    className="px-3 py-1.5 bg-slate-50 hover:bg-white border border-slate-100 hover:border-aion-primary/50 rounded-full text-sm text-slate-600 hover:text-aion-primary transition-all flex items-center gap-1"
-                 >
-                    <Plus className="w-3 h-3 opacity-50" />
-                    {suggestion}
-                 </button>
-               ))}
-             </div>
+            
           </div>
-        </div>
-      )}
 
-      <div className="mt-10 flex justify-between items-center">
-        {step > 1 ? (
-            <button 
-                onClick={() => setStep(step - 1)}
-                className="text-slate-500 hover:text-slate-800 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-100 transition-colors"
-            >
-                Back
-            </button>
-        ) : <div></div>}
+          {/* Action Button */}
+          <div className="mt-10 pt-6 border-t border-slate-100">
+             <button
+                onClick={() => onSubmit(metrics)}
+                disabled={isLoading}
+                className={`w-full text-white h-16 rounded-2xl font-bold text-sm tracking-widest uppercase shadow-xl flex items-center justify-center gap-3 group transition-all disabled:opacity-70 disabled:cursor-wait hover:scale-[1.02] active:scale-[0.98] ${getMainButtonClass(persona)}`}
+             >
+                {isLoading ? (
+                    <>
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    {labels.loading}
+                    </>
+                ) : (
+                    <>
+                    {labels.submitBtn}
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    </>
+                )}
+             </button>
+          </div>
 
-        <button
-          onClick={handleNext}
-          disabled={isLoading}
-          className="bg-aion-primary hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:transform-none disabled:shadow-none"
-        >
-          {isLoading ? (
-              <div className="flex items-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                  Planning...
-              </div>
-          ) : step === 3 ? 'Generate My Plan' : 'Next Step'}
-        </button>
       </div>
+
+      {/* Right Panel: Image */}
+      <div className="hidden md:block w-[35%] relative bg-slate-100 overflow-hidden">
+         <img 
+            src={persona === 'Toxic Motivation' 
+                ? "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=2000&auto=format&fit=crop" // Dark gym/grit
+                : persona === 'Softer / Empathetic'
+                ? "https://images.unsplash.com/photo-1518531933037-9a60aa2036a6?q=80&w=2000&auto=format&fit=crop" // Soft flower
+                : "https://images.unsplash.com/photo-1517021897933-0e0319cfbc28?q=80&w=2000&auto=format&fit=crop" // Nature
+            }
+            alt="Wellness" 
+            className="absolute inset-0 w-full h-full object-cover opacity-90 transition-opacity duration-500"
+         />
+         <div className={`absolute inset-0 bg-gradient-to-t via-transparent to-transparent ${persona === 'Toxic Motivation' ? 'from-black/80' : 'from-emerald-900/60'}`}></div>
+         
+         <div className="absolute bottom-10 left-10 right-10 text-white animate-in slide-in-from-bottom-8 duration-700">
+             <div className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mb-4 border border-white/10">
+                 {persona === 'Toxic Motivation' ? <Flame className="w-5 h-5 text-red-400" /> : <Sparkles className="w-5 h-5 text-emerald-300" />}
+             </div>
+             <p className="font-serif text-xl leading-relaxed font-medium text-shadow-sm">
+                 "{quote.text}"
+             </p>
+             <p className="text-xs font-bold opacity-80 mt-3 tracking-widest uppercase text-emerald-300">— {quote.author}</p>
+         </div>
+      </div>
+
     </div>
   );
 };

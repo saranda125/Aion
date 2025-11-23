@@ -1,3 +1,5 @@
+
+
 export enum EventSource {
   SCHOOL = 'School/Study',
   WELLNESS = 'Health & Chill',
@@ -16,8 +18,11 @@ export interface CalendarEvent {
   end: Date;
   source: EventSource;
   description?: string;
+  location?: string; // New field for tooltip
   color?: string;
   isFixed: boolean;
+  status?: 'planned' | 'completed' | 'missed';
+  workoutType?: string;
 }
 
 export interface ChatMessage {
@@ -29,14 +34,24 @@ export interface ChatMessage {
 
 export type Mood = 'Great' | 'Okay' | 'Stressed' | 'Tired' | 'Anxious';
 
+export interface UserProfile {
+  name: string;
+  age: string;
+  hasCycle: boolean;
+  familyRoles: string[]; // Deprecated in UI, kept for type safety if needed
+  relationshipStatus?: string; // New
+  kidsCount?: number; // New
+  careerRoles: string[];
+  avatarSeed: string;
+  connectedApps?: string[];
+  isGoogleCalendarConnected?: boolean;
+}
+
 export interface WellnessMetrics {
-  roles: string[];
   sleepHours: number;
   stressLevel: number; // 1-10
   mood: Mood;
-  studyHoursPlanned: number;
-  deadlines: string; // Free text description
-  obligations: string; // Free text
+  customActivity?: string;
 }
 
 export enum BurnoutLevel {
@@ -45,9 +60,24 @@ export enum BurnoutLevel {
   HIGH = 'High'
 }
 
+export type SuggestionType = 'warning' | 'optimization' | 'opportunity' | 'insight';
+export type Priority = 'High' | 'Medium' | 'Low';
+
+export interface DailySuggestion {
+  id: string;
+  title: string;
+  description: string;
+  type: SuggestionType;
+  priority: Priority;
+  timeSlot?: string;
+}
+
 export interface DayAnalysis {
   burnoutLevel: BurnoutLevel;
   burnoutScore: number; // 0-100
   advice: string;
   schedule: CalendarEvent[];
+  suggestions: DailySuggestion[];
 }
+
+export type Persona = 'Toxic Motivation' | 'Softer / Empathetic' | 'Neutral / Stoic';

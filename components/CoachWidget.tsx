@@ -1,21 +1,39 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { getCoachResponse } from '../services/geminiService';
-import { ChatMessage } from '../types';
+import { ChatMessage, Persona } from '../types';
 import { Send, Sparkles, Loader2, Minimize2 } from 'lucide-react';
 
-export const CoachWidget: React.FC = () => {
+interface CoachWidgetProps {
+  persona?: Persona;
+}
+
+export const CoachWidget: React.FC<CoachWidgetProps> = ({ persona = 'Neutral / Stoic' }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
       role: 'model',
-      text: "Hey! 👋 I'm Aion. I can help you plan your homework, deal with stress, or just chat. What's up?",
+      text: `Hey! 👋 I'm Aion. I'm currently in ${persona.split('/')[0]} mode. What's up?`,
       timestamp: new Date()
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Reset welcome message if persona changes
+  useEffect(() => {
+     setMessages(prev => [
+         ...prev, 
+         {
+             id: Date.now().toString(),
+             role: 'model',
+             text: `(System: Switching personality to ${persona}...)`,
+             timestamp: new Date()
+         }
+     ]);
+  }, [persona]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -40,8 +58,13 @@ export const CoachWidget: React.FC = () => {
     setIsLoading(true);
 
     try {
+      // Inject Persona instruction into the history context or append to prompt
       const history = messages.map(m => ({ role: m.role, text: m.text }));
-      const responseText = await getCoachResponse(history, userMsg.text);
+      
+      // Slight hack: Append persona instruction to user message for context if service doesn't support separate config update easily per request
+      const contextMessage = `[System Instruction: Respond with this persona: ${persona}]. User says: ${userMsg.text}`;
+      
+      const responseText = await getCoachResponse(history, contextMessage);
 
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -77,7 +100,7 @@ export const CoachWidget: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-[500px] w-full max-w-sm bg-white/90 backdrop-blur-xl border border-slate-200 rounded-3xl overflow-hidden shadow-2xl shadow-slate-200/50">
+    <div className="flex flex-col h-[500px] w-full max-w-[350px] bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl shadow-slate-200/50">
       {/* Header */}
       <div className="p-4 bg-gradient-to-r from-emerald-50 to-white border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center space-x-3">
@@ -88,7 +111,7 @@ export const CoachWidget: React.FC = () => {
             <h3 className="font-bold text-slate-800">Aion Coach</h3>
             <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wide flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Online
+                {persona.split('/')[0]}
             </p>
           </div>
         </div>
@@ -149,3 +172,4 @@ export const CoachWidget: React.FC = () => {
     </div>
   );
 };
+    

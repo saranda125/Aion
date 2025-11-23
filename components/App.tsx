@@ -1,4 +1,5 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { CoachWidget } from './components/CoachWidget';
 import { WellnessCheckin } from './components/WellnessCheckin';
@@ -139,8 +140,8 @@ export default function App() {
   const allEvents = useMemo(() => {
     let baseEvents = generateWeeklyEvents();
     
-    // FILTER: Only show TUM events if user is a Student
-    if (!profile.careerRoles.includes('Student')) {
+    // FILTER: Only show TUM events if user CONNECTED TUM
+    if (!profile.connectedApps?.includes('TUM Online')) {
         baseEvents = baseEvents.filter(e => e.source !== EventSource.TUM);
     }
 
@@ -158,7 +159,7 @@ export default function App() {
     // Only userEvents (which include accepted suggestions) are shown in the main grid.
     
     return [...baseEvents, ...userEvents];
-  }, [profile.careerRoles, profile.hasCycle, profile.isGoogleCalendarConnected, userEvents]);
+  }, [profile.connectedApps, profile.hasCycle, profile.isGoogleCalendarConnected, userEvents]);
 
   // Filter out accepted suggestions from the display list of potential suggestions
   const suggestedEvents = useMemo(() => {
